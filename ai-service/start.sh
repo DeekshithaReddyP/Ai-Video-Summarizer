@@ -1,2 +1,4 @@
 #!/bin/bash
-gunicorn -b 0.0.0.0:$PORT app:app
+pip install -r requirements.txt
+apt-get update && apt-get install -y ffmpeg  # Install FFmpeg
+python app.py

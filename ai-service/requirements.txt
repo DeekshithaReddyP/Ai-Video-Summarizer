@@ -7,3 +7,6 @@ opencv-python
 numpy
 pandas
 gunicorn
+torchaudio
+ffmpeg-python
+flask
