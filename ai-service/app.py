@@ -13,7 +13,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-whisper_model = whisper.Whisper.load_model("small")
+whisper_model = whisper.load_model("small")
 summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 
 KEYFRAME_DIR = os.path.join(os.getcwd(), "static", "keyframes")
