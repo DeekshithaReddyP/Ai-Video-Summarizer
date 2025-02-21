@@ -1,6 +1,6 @@
 Flask
 flask-cors
-whisper
+openai-whisper
 transformers
 torch
 opencv-python

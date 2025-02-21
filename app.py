@@ -4,6 +4,7 @@ import ssl
 import os
 import cv2
 import numpy as np
+import subprocess
 from transformers import pipeline
 from flask_cors import CORS
 
@@ -13,29 +14,54 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 ssl._create_default_https_context = ssl._create_unverified_context
 
 whisper_model = whisper.load_model("base")
-
 summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 
 KEYFRAME_DIR = os.path.join(os.getcwd(), "static", "keyframes")
-os.makedirs(KEYFRAME_DIR, exist_ok=True) 
+os.makedirs(KEYFRAME_DIR, exist_ok=True)
+
+AUDIO_DIR = "/tmp"
+os.makedirs(AUDIO_DIR, exist_ok=True)
+
+def extract_audio(video_path):
+    """Extracts audio from video using ffmpeg."""
+    audio_path = os.path.join(AUDIO_DIR, os.path.basename(video_path).replace(".mp4", ".wav"))
+    
+    command = f"ffmpeg -i \"{video_path}\" -vn -acodec pcm_s16le -ar 16000 -ac 1 \"{audio_path}\" -y"
+    subprocess.run(command, shell=True, check=True)
+
+    return audio_path
+
 
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
-    """Handles audio transcription using Whisper."""
+    """Handles audio/video transcription using Whisper."""
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
 
-    audio_file = request.files["file"]
-    audio_path = f"/tmp/{audio_file.filename}"
-    audio_file.save(audio_path) 
+    uploaded_file = request.files["file"]
+    file_ext = os.path.splitext(uploaded_file.filename)[1].lower()
+    
+    temp_path = os.path.join(AUDIO_DIR, uploaded_file.filename)
+    uploaded_file.save(temp_path)
 
     try:
+        # If it's a video, extract audio
+        if file_ext in [".mp4", ".avi", ".mov", ".mkv"]:
+            audio_path = extract_audio(temp_path)
+        else:
+            audio_path = temp_path  # It's already an audio file
+
+        # Transcribe using Whisper
         result = whisper_model.transcribe(audio_path)
         transcription = result["text"]
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
     finally:
-        os.remove(audio_path)  
+        os.remove(temp_path)  # Clean up original uploaded file
+        if file_ext in [".mp4", ".avi", ".mov", ".mkv"]:
+            os.remove(audio_path)  # Remove extracted audio
 
     return jsonify({"transcription": transcription})
 
@@ -69,14 +95,14 @@ def extract_keyframes():
 
     video_file = request.files["file"]
     video_path = os.path.join(KEYFRAME_DIR, video_file.filename)
-    video_file.save(video_path)  
+    video_file.save(video_path)
 
     try:
         cap = cv2.VideoCapture(video_path)
         success, prev_frame = cap.read()
         keyframe_urls = []
         frame_count = 0
-        frame_interval = 30 
+        frame_interval = 30
         threshold = 15_000_000
 
         while success:
@@ -84,7 +110,7 @@ def extract_keyframes():
             if not success:
                 break
 
-            if frame_count % frame_interval == 0:  
+            if frame_count % frame_interval == 0:
                 diff = cv2.absdiff(prev_frame, curr_frame)
                 diff_sum = np.sum(diff)
 
@@ -99,7 +125,7 @@ def extract_keyframes():
             frame_count += 1
 
         cap.release()
-        os.remove(video_path) 
+        os.remove(video_path)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -114,5 +140,5 @@ def get_keyframe(filename):
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  
+    port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port)
