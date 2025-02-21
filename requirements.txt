@@ -1,0 +1,9 @@
+Flask
+flask-cors
+whisper
+transformers
+torch
+opencv-python
+numpy
+pandas
+gunicorn
